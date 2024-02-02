@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "node main.js",
-    "convert": "rm -rf frames -y && mkdir frames && ffmpeg -i Touhou__Bad_Apple.mp4 -vf \"scale=20:20\" -r 10 -pix_fmt rgb0 \"frames/out-%04d.bmp\""
+    "convert": "rm -rf frames -y && mkdir frames && ffmpeg -i Touhou__Bad_Apple.mp4 -vf \"scale=20:20\" -r 60 -pix_fmt rgb0 \"frames/out-%04d.bmp\""
   },
   "type": "module",
   "keywords": [],

@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, fork } from 'child_process';
 import { readFile, readdir, writeFile, unlink } from 'fs/promises';
 
 
@@ -115,28 +115,40 @@ async function writeFrame(frame, index) {
 
                     return rowFunction;
                 }))
-            .concat(`${prevFunctionName}();`)
+            .concat(`\nprocess.on('message', () => ${prevFunctionName}());`)
             .join('\n');
 
-    const frameName = `js-frames/fr_${index}.js`;
-    await writeFile(frameName, frameData);
+    const frameName = `fr_${index}.js`;
+    await writeFile(`js-frames/${frameName}`, frameData);
 
     return frameName;
 }
 
 
 async function runAll(frameNames, fps) {
+    const queueSize = Math.min(10, frameNames.length);
+
+    const processes = new Array(queueSize).fill(null).map((_, i) => fork(`js-frames/${frameNames[i]}`, {
+        silent: true
+    }));
+
     const millisBetweenFrames = Math.round((1 / fps) * 1000);
 
     const frameTimes = [];
 
-    for (const frameName of frameNames) {
+    for (let i = 0; i < frameNames.length; i++) {
         const start = new Date().getTime();
-        const child = spawn("node", [frameName]);
+        const child = processes.shift();
 
-        child.stderr.once('data', () => console.clear())
+        if (!child) {
+            throw new Error("Child pool empty");
+        }
+
+        child.stderr.once('data', () => console.clear());
 
         child.stderr.pipe(process.stderr);
+
+        child.send('start');
 
         await new Promise((res, _) => {
             child.on('exit', function (code) {
@@ -146,9 +158,15 @@ async function runAll(frameNames, fps) {
 
                 frameTimes.push(elapsedMillis);
 
+                if (i + queueSize < frameNames.length) {
+                    processes.push(fork(`js-frames/${frameNames[i + queueSize]}`, {
+                        silent: true
+                    }));
+                }
+
                 setTimeout(() => {
                     res();
-                }, Math.max(millisBetweenFrames - elapsedMillis, 0))
+                }, Math.max(millisBetweenFrames - elapsedMillis, 0));
             });
         })
     }
