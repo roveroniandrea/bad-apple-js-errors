@@ -1,0 +1,10 @@
+# Frames
+frames
+js-frames
+
+# Source video
+Touhou__Bad_Apple.mp4
+
+# Other
+node_modules
+.DS_Store
