@@ -1,5 +1,5 @@
-import { spawn, fork } from 'child_process';
-import { readFile, readdir, writeFile, unlink } from 'fs/promises';
+import { fork } from 'child_process';
+import { readFile, readdir, unlink, writeFile } from 'fs/promises';
 
 
 
@@ -16,13 +16,23 @@ function littleEndianToInt(bytes) {
 }
 
 async function readFrames() {
-    const files = await readdir("frames")
-        .then(content => content.sort((c1, c2) => {
-            const i1 = c1.slice(4, 8);
-            const i2 = c2.slice(4, 8);
+    console.log(`Reading bmp frames`);
 
-            return parseInt(i1) - parseInt(i2);
-        }));
+    const files = await readdir("frames")
+        .then(content => {
+            // Files have a suffix with their order
+            // Suffix length depends on how many frames have been generated
+            // For example, the entire video at 60fps generates around 13k frames
+            // So they are ordered from 00000 to 13000, 5 digits
+            const digits = content.length.toString().length;
+
+            return content.sort((c1, c2) => {
+                const i1 = c1.slice(4, 4 + digits);
+                const i2 = c2.slice(4, 4 + digits);
+
+                return parseInt(i1) - parseInt(i2);
+            });
+        });
 
     const fileContents = await Promise.all(files.map(async file => {
         const buffer = await readFile(`frames/${file}`);
@@ -98,7 +108,6 @@ async function readFrames() {
 
 
 async function writeFrame(frame, index) {
-
     const totalRows = frame.length;
 
     let prevFunctionName = null;
@@ -126,6 +135,8 @@ async function writeFrame(frame, index) {
 
 
 async function runAll(frameNames, fps) {
+    console.log(`Running Bad Apple!`);
+
     const queueSize = Math.min(10, frameNames.length);
 
     const processes = new Array(queueSize).fill(null).map((_, i) => fork(`js-frames/${frameNames[i]}`, {
@@ -176,6 +187,7 @@ async function runAll(frameNames, fps) {
 
 
 async function clean() {
+    console.log(`Cleaning data`);
     const jsFilesToDelete = await readdir("js-frames");
 
     await Promise.all(jsFilesToDelete.map(file => unlink(`js-frames/${file}`)));
@@ -184,6 +196,7 @@ async function clean() {
 clean()
     .then(() => readFrames())
     .then(frames => {
+        console.log(`Writing js frames`);
         return Promise.all(frames.map((frame, i) => writeFrame(frame, i)));
     })
     .then(async (frameNames) => {
@@ -192,6 +205,5 @@ clean()
     .then(frameTimes => {
         const avg = frameTimes.reduce((acc, el) => acc + el, 0) / (frameTimes.length || 1);
 
-        console.log(frameTimes);
         console.log(`Average millis between frames: ${avg.toFixed(2)}, ${(1000 / avg).toFixed(2)} fps`);
     });
