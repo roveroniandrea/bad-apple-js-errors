@@ -60,8 +60,8 @@ async function readFrames() {
         // Frame consists in array of rows, each with grey pixels in range of [0-255]
         let frame = [];
 
-        for (let byteIndex = startingAddress; byteIndex < buffer.length; byteIndex += bytesPerPixel) {
-
+        let byteIndex = startingAddress;
+        while (byteIndex < buffer.length) {
             // The X coordinate is calculated from the byte index (starting address-based) and the total bytes in a row, consisting in data and padding
             // After that, the byte x is divided by the total bytes per pixel, in order to retrieve the correct pixel X, not byte X
             const pixelX = Math.floor(((byteIndex - startingAddress) % (dataBytesInRow + paddingBytesInRow)) / bytesPerPixel);
@@ -91,9 +91,17 @@ async function readFrames() {
                 }
 
                 frame[pixelY][pixelX] = avg;
-            }
 
+                // Increment to the next pixel
+                byteIndex += bytesPerPixel;
+            }
+            else {
+                // Otherwise this is the first padding byte in the row, increment by the number of padding bytes, in order not to skip some non-padding bytes
+                // For example, if paddingBytesInRow = 2 and bytesPerPixel = 3, I have to skip two bytes, not 3
+                byteIndex += paddingBytesInRow;
+            }
         }
+
 
         return {
             file: file,
@@ -140,12 +148,19 @@ async function runAll(frameNames, fps) {
     const queueSize = Math.min(10, frameNames.length);
 
     const processes = new Array(queueSize).fill(null).map((_, i) => fork(`js-frames/${frameNames[i]}`, {
-        silent: true
+        stdio: ['ignore', 'ignore', 'pipe', 'ipc']
     }));
+
+    // Await a certain time to allow for child process to actually start
+    await new Promise((res, _) => {
+        setTimeout(() => res(), 300);
+    });
 
     const millisBetweenFrames = Math.round((1 / fps) * 1000);
 
     const frameTimes = [];
+
+    const initRunAllTime = new Date().getTime();
 
     for (let i = 0; i < frameNames.length; i++) {
         const start = new Date().getTime();
@@ -182,7 +197,12 @@ async function runAll(frameNames, fps) {
         })
     }
 
-    return frameTimes;
+    const endRunAllTime = new Date().getTime();
+
+    return {
+        frameTimes: frameTimes,
+        totalTime: endRunAllTime - initRunAllTime
+    };
 }
 
 
@@ -200,10 +220,12 @@ clean()
         return Promise.all(frames.map((frame, i) => writeFrame(frame, i)));
     })
     .then(async (frameNames) => {
-        return runAll(frameNames, 60);
+        return runAll(frameNames, 30);
     })
-    .then(frameTimes => {
-        const avg = frameTimes.reduce((acc, el) => acc + el, 0) / (frameTimes.length || 1);
+    .then(({ frameTimes, totalTime }) => {
+        const expectedAvg = frameTimes.reduce((acc, el) => acc + el, 0) / (frameTimes.length || 1);
+        console.log(`Average expected millis between frames: ${expectedAvg.toFixed(2)}, ${(1000 / expectedAvg).toFixed(2)} fps`);
 
-        console.log(`Average millis between frames: ${avg.toFixed(2)}, ${(1000 / avg).toFixed(2)} fps`);
+        const actualAvg = totalTime / (frameTimes.length || 1);
+        console.log(`Total time taken: ${totalTime}ms for ${frameTimes.length} frames. Avg actual fps: ${(1000 / actualAvg).toFixed(2)}`);
     });
