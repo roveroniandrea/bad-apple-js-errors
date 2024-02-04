@@ -178,17 +178,17 @@ async function runAll(frameNames, fps) {
 
         await new Promise((res, _) => {
             child.on('exit', function (code) {
-                const end = new Date().getTime();
-
-                const elapsedMillis = end - start;
-
-                frameTimes.push(elapsedMillis);
 
                 if (i + queueSize < frameNames.length) {
                     processes.push(fork(`js-frames/${frameNames[i + queueSize]}`, {
                         silent: true
                     }));
                 }
+
+                // Forking is syncronous, so I actually have to measure total time after spawning the new process
+                const end = new Date().getTime();
+                const elapsedMillis = end - start;
+                frameTimes.push(elapsedMillis);
 
                 setTimeout(() => {
                     res();
