@@ -3,6 +3,8 @@ Bad Apple video played on terminal.
 
 Each frame is a NodeJS process that tries to execute some bugged functions, throwing an Error. The stack trace is printed on the console, resulting in a single frame. By spawning multiple processes on different scripts, the complete Bad Apple video can be rendered.
 
+### [See video](https://youtu.be/eLO-nH3dcNk)
+
 # How to use
 - Clone the project
 - `npm i` This repo does not use any dependency, with the exception on Node types
@@ -25,7 +27,7 @@ Uncaught TypeError: Cannot read properties of null (reading 'toString')
     at myBuggedFunction (REPL10:1:42)
 ```
 
-We can nest it:
+We can nest it to create a stack trace with two rows:
 ```
 > function myBuggedFunction2() { return myBuggedFunction()}
 > myBuggedFunction2()
@@ -35,7 +37,22 @@ Uncaught TypeError: Cannot read properties of null (reading 'toString')
     at myBuggedFunction2 (REPL2:1:38)
 ```
 
-By correctly naming each function, we can print some ASCII art on it. The only adjustment needed is to change the maximum stack size that Node has to keep, in order to print all the rows needed:
+By correctly naming each function, we can print some ASCII art on it:
+```
+> function ____$____(){return null.toString()}
+> function ___$$$___() {____$____()};
+> function __$$$$$__() {___$$$___()};
+> function _$$$$$$$_() {__$$$$$__()};
+> 
+> _$$$$$$$_()
+Uncaught TypeError: Cannot read properties of null (reading 'toString')
+    at ____$____ (REPL1:1:34)
+    at ___$$$___ (REPL2:1:23)
+    at __$$$$$__ (REPL3:1:23)
+    at _$$$$$$$_ (REPL4:1:23)
+```
+
+ The only adjustment needed is to change the maximum stack size that Node has to keep, in order to print all the rows needed:
 
 ```js
 // Allows to keep and print 50 function calls in the stack trace
@@ -45,6 +62,3 @@ Error.stackTraceLimit = 50;
 
 The `main.js` process loads all bmp files, and for each of them writes the corresponding js file consisting in a function for each image row,
 It then spawns a child process via fork for each frame, piping its stderr to the console. It handles all the timings and clears the console between each frame
-
-## From .mp4 to .bmp
-
